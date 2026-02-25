@@ -6,6 +6,8 @@
 #include "spinlock.h"
 #include "proc.h"
 
+extern struct proc proc[NPROC];
+
 uint64
 sys_exit(void)
 {
@@ -91,3 +93,24 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// returns number of active processes (not unused procstate)
+
+uint64
+sys_getproccount(void)
+{
+  struct proc *p;
+  int count = 0;
+
+// iterate through entire process table
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state !=UNUSED) {
+      count++;
+    }
+    release(&p->lock);
+  }
+  return count;
+}
+
+
