@@ -49,3 +49,13 @@ void thread_init(void);
 void thread_create(void (*func)());
 void thread_yield(void);
 void thread_exit(void);
+
+// procinfo struct
+
+struct procinfo {
+  int pid;
+  int state;
+  int ppid;
+  char name[16];
+};
+int ps(struct procinfo*, int);

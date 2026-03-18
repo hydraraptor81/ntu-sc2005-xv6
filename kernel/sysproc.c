@@ -92,3 +92,35 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_ps(void)
+{
+  struct proc *p;
+  struct procinfo info[NPROC];
+  uint64 addr;
+  int max, n = 0;
+
+  argaddr(0, &addr);
+  argint(1, &max);
+
+  if(max > NPROC)
+    max = NPROC;
+
+  for(p = proc; p < &proc[NPROC] && n < max; p++){
+    acquire(&p->lock);
+    if(p->state != UNUSED){
+      info[n].pid = p->pid;
+      info[n].state = p->state;
+      info[n].ppid = (p->parent) ? p->parent->pid : -1;
+      safestrcpy(info[n].name, p->name, sizeof(info[n].name));
+      n++;
+    }
+    release(&p->lock);
+  }
+
+  if(copyout(myproc()->pagetable, addr, (char*)info, n*sizeof(struct procinfo)) < 0)
+    return -1;
+
+  return n;
+}
