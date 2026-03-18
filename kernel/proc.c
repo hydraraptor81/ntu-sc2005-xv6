@@ -33,7 +33,7 @@ void
 proc_mapstacks(pagetable_t kpgtbl)
 {
   struct proc *p;
-  
+
   for(p = proc; p < &proc[NPROC]; p++) {
     char *pa = kalloc();
     if(pa == 0)
@@ -48,7 +48,7 @@ void
 procinit(void)
 {
   struct proc *p;
-  
+
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
@@ -93,7 +93,7 @@ int
 allocpid()
 {
   int pid;
-  
+
   acquire(&pid_lock);
   pid = nextpid;
   nextpid = nextpid + 1;
@@ -144,6 +144,8 @@ found:
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
+  // Debug,
+  printf("allocproc: pid=%d context.ra set to %p (forkret)\n", p->pid, forkret);
   p->context.sp = p->kstack + PGSIZE;
 
   return p;
@@ -236,7 +238,7 @@ userinit(void)
 
   p = allocproc();
   initproc = p;
-  
+
   // allocate one user page and copy initcode's instructions
   // and data into it.
   uvmfirst(p->pagetable, initcode, sizeof(initcode));
@@ -283,17 +285,35 @@ fork(void)
   struct proc *np;
   struct proc *p = myproc();
 
+  // Debug: list parent pid, name and state
+  printf("fork: parent pid=%d, name=%s, state=%d\n",
+          p->pid, p->name, p->state);
+
   // Allocate process.
   if((np = allocproc()) == 0){
+    // Debug: allocation failed
+    printf("fork: allocproc failed for parent pid=%d\n", p->pid);
     return -1;
   }
 
+  // Debug: allocproc succeeded
+  printf("fork: allocproc succeeded for parent pid=%d\n", p->pid);
+  // Debug: print child's pid
+  printf("fork: child allocated pid=%d\n", np->pid);
+
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+    // Debug: memory copy failed
+    printf("fork: uvmcopy failed parent=%d, child=%d\n",
+            p->pid, np->pid);
     freeproc(np);
     release(&np->lock);
     return -1;
   }
+
+  // Debug: uvmcopy succeeded
+  printf("fork: uvmcopy succeeded for parent pid=%d\n", p->pid);
+  // copies process memory size of parent to child (ensure child within bounds)
   np->sz = p->sz;
 
   // copy saved user registers.
@@ -312,6 +332,10 @@ fork(void)
 
   pid = np->pid;
 
+  // Debug: child setup complete
+  printf("fork: child pid=%d fully initialized, parent=%d\n",
+         np->pid, p->pid);
+
   release(&np->lock);
 
   acquire(&wait_lock);
@@ -321,6 +345,10 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
+
+  // Debug: returning child pid to parent
+  printf("fork: returning child pid=%d to parent pid=%d\n",
+         pid, p->pid);
 
   return pid;
 }
@@ -372,7 +400,7 @@ exit(int status)
 
   // Parent might be sleeping in wait().
   wakeup(p->parent);
-  
+
   acquire(&p->lock);
 
   p->xstate = status;
@@ -428,7 +456,7 @@ wait(uint64 addr)
       release(&wait_lock);
       return -1;
     }
-    
+
     // Wait for a child to exit.
     sleep(p, &wait_lock);  //DOC: wait-sleep
   }
@@ -446,6 +474,8 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  // track printed PIDS
+  static int first_done[NPROC] = {0};
 
   c->proc = 0;
   for(;;){
@@ -464,6 +494,13 @@ scheduler(void)
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
+
+        // Debug
+        if(p->pid < 64 && !first_done[p->pid]){
+          first_done[p->pid] = 1;
+          printf("kernel/proc.c: scheduler() selects new process [pid=%d]\n", p->pid);
+          printf("kernel/proc.c: calling swtch() to start new context\n");
+        }
         p->state = RUNNING;
         c->proc = p;
         swtch(&c->context, &p->context);
@@ -525,6 +562,9 @@ yield(void)
 void
 forkret(void)
 {
+  // Debug: forkret entry
+  printf("forkret: pid=%d returning to userspace\n", myproc()->pid);
+
   static int first = 1;
 
   // Still holding p->lock from scheduler.
@@ -550,7 +590,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  
+
   // Must acquire p->lock in order to
   // change p->state and then call sched.
   // Once we hold p->lock, we can be
@@ -629,7 +669,7 @@ int
 killed(struct proc *p)
 {
   int k;
-  
+
   acquire(&p->lock);
   k = p->killed;
   release(&p->lock);

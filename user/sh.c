@@ -183,8 +183,9 @@ int
 fork1(void)
 {
   int pid;
-
+  fprintf(2, "sh.c: fork() called, pid=%d\n", getpid());
   pid = fork();
+  fprintf(2, "sh.c: fork() returned, pid=%d, child=%d\n", getpid(), pid);
   if(pid == -1)
     panic("fork");
   return pid;
