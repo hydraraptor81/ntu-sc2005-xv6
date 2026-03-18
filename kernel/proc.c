@@ -124,6 +124,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->ctime = ticks;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -469,11 +470,15 @@ wait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+
+
+#ifdef FCFS_SCHED
 void
 scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  struct proc *oldest;
   // track printed PIDS
   static int first_done[NPROC] = {0};
 
@@ -488,29 +493,39 @@ scheduler(void)
     intr_off();
 
     int found = 0;
+    oldest = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
+        // printf("kernel/proc.c: scheduler() process with even pid=%d\n", p->pid);
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
-
-        // Debug
-        if(p->pid < 64 && !first_done[p->pid]){
-          first_done[p->pid] = 1;
-          printf("kernel/proc.c: scheduler() selects new process [pid=%d]\n", p->pid);
-          printf("kernel/proc.c: calling swtch() to start new context\n");
+        if(oldest == 0 || p->ctime < oldest->ctime) {
+          if(oldest != 0)
+            release(&oldest->lock);
+          oldest = p;
+          continue;
         }
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
       }
       release(&p->lock);
+    }
+    if(oldest) {
+      // Debug
+      if(oldest->pid < 64 && !first_done[oldest->pid]){
+        first_done[oldest->pid] = 1;
+        printf("kernel/proc.c: scheduler() selects new process [pid=%d]\n",
+               oldest->pid);
+        printf("kernel/proc.c: calling swtch() to start new context\n");
+      }
+      oldest->state = RUNNING;
+      c->proc = oldest;
+      swtch(&c->context, &oldest->context);
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+      c->proc = 0;
+      release(&oldest->lock);
+      found = 1;
     }
     if(found == 0) {
       // nothing to run; stop running on this core until an interrupt.
@@ -518,7 +533,80 @@ scheduler(void)
     }
   }
 }
+#else
+void
+scheduler(void)
+{
+  struct proc *p;
+  struct cpu *c = mycpu();
+  struct proc *selected;
+  // track printed PIDS
+  static int first_done[NPROC] = {0};
 
+  c->proc = 0;
+  for(;;){
+    // The most recent process to run may have had interrupts
+    // turned off; enable them to avoid a deadlock if all
+    // processes are waiting. Then turn them back off
+    // to avoid a possible race between an interrupt
+    // and wfi.
+    intr_on();
+    intr_off();
+
+    int found = 0;
+    selected = 0;
+    // priortize even PIDs
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE && (p->pid % 2) == 0) {
+        // printf("kernel/proc.c: scheduler() process with even pid=%d\n", p->pid);
+        // Switch to chosen process.  It is the process's job
+        // to release its lock and then reacquire it
+        // before jumping back to us.
+        selected = p;
+        break;
+      }
+      release(&p->lock);
+    }
+    if(selected == 0) {
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE && (p->pid % 2) == 1) {
+          // printf("kernel/proc.c: scheduler() process with odd pid=%d\n", p->pid);
+          // Switch to chosen process.  It is the process's job
+          // to release its lock and then reacquire it
+          // before jumping back to us.
+          selected = p;
+          break;
+        }
+        release(&p->lock);
+      }
+    }
+    if(selected) {
+      // Debug
+      if(selected->pid < 64 && !first_done[selected->pid]){
+        first_done[selected->pid] = 1;
+        printf("kernel/proc.c: scheduler() selects new process [pid=%d]\n",
+               selected->pid);
+        printf("kernel/proc.c: calling swtch() to start new context\n");
+      }
+      selected->state = RUNNING;
+      c->proc = selected;
+      swtch(&c->context, &selected->context);
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+      c->proc = 0;
+      release(&selected->lock);
+      found = 1;
+    }
+    if(found == 0) {
+      // nothing to run; stop running on this core until an interrupt.
+      asm volatile("wfi");
+    }
+  }
+}
+#endif
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
