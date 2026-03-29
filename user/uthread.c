@@ -36,7 +36,7 @@ struct thread {
 };
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
-extern void thread_switch(uint64, uint64);
+extern void thread_switch(struct context *old, struct context *new);
 
 void
 thread_init(void)
