@@ -61,22 +61,27 @@ void race_test() {
 }
 
 struct buf_sem {
-    // TODO: add semaphores as required
+    // add semaphores as required
+    int sem_empty; // track empty slots, initially 1
+    int sem_full;  // track full slots, initially 0
 };
 
 void consumer(struct buf_sem b, int loops, int valid[]) {
     char tmp;
     for(int i = 0; i < loops; i++) {
-        // TODO: wait buffer slot full and signal empty slot
+        sem_wait(b.sem_full);
         tmp = ubuf_read();
+        sem_signal(b.sem_empty);
         T_ASSERT(valid[(unsigned char)tmp]);
     }
 }
 
 void producer(const char* msg, struct buf_sem b) {
     for (const char* p = msg; *p != '\0'; p++) {
-        // TODO: wait buffer slot emtpy and signal used slot
+        // wait buffer slot emtpy and signal used slot
+        sem_wait(b.sem_empty);
         ubuf_write(*p);
+        sem_signal(b.sem_full);
     }
 }
 
@@ -91,7 +96,10 @@ void producer_consumer() {
     }
 
     struct buf_sem b;
-    // TODO init semaphores as required
+    // init semaphores as required
+    b.sem_empty = sem_init(1);
+    b.sem_full =  sem_init(0)
+    T_ASSSERT(b.sem_empty >= 0 && b.sem_full >= 0);
 
     for (int i = 0; i < NUM_PROD; i++) {
         int pid = fork();
@@ -107,7 +115,9 @@ void producer_consumer() {
         wait(0);
     }
     printf("[producer_consumer] PASS: message delivered\n");
-    // TODO clean-up semaphores
+    // clean-up semaphores
+    sem_free(b.sem_empty);
+    sem_free(b.sem_full);
 }
 
 
