@@ -23,6 +23,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int countvp(void);
+int countpp(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

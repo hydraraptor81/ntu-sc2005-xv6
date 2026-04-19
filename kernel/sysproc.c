@@ -103,3 +103,27 @@ sys_countvp(void)
 
   return num_virtual_pages;
 }
+
+uint64
+sys_countpp(void)
+{
+  struct proc *p = myproc(); // ptr to process control block proc struct
+  uint64 physical_page_count = 0;
+  uint64 va;
+  pte_t *pte;
+
+  // iterate through virtual address space for one 4K page at a time
+  for(va = 0; va < p->sz; va += PGSIZE){
+    // walk the page table to find the page table entry for this va,
+    // 0 argument means, do not create a page table entry if it does not exist
+    pte = walk(p->pagetable, va, 0);
+
+    // check if pte exist and whether the PTE_V flag is set
+    if(pte != 0 && (*pte * PTE_V) != 0){
+      physical_page_count++;
+    }
+  }
+
+  return physical_page_count;
+
+}

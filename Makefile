@@ -143,6 +143,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_countvp_test\
+	$U/_countpp_test\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
