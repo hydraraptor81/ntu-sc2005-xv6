@@ -91,3 +91,15 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_countvp(void)
+{
+  struct proc *p = myproc();
+  // Process size p->sz tracks total bytes of virtual memory allocated
+  // to user program (text + data + guard page + stack + heap)
+  // round up to nearest page boundary and divide by page size
+  uint64 num_virtual_pages = PGROUNDUP(p->sz) / PGSIZE;
+
+  return num_virtual_pages;
+}
