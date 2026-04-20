@@ -144,7 +144,9 @@ UPROGS=\
 	$U/_zombie\
 	$U/_countvp_test\
 	$U/_countpp_test\
+	$U/_lazytest\
 	$U/_fault\
+
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
