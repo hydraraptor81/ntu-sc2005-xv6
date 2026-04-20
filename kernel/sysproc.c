@@ -50,6 +50,12 @@ sys_sbrk(void)
 
   // lazy allocation, increase virtual limit without allocating physical RAM
   if(n > 0){
+    // ensure allocation does not exceed max virtual address
+    if(addr + n >= MAXVA)
+      return -1;
+    // call helper function to mark page table entries with PTE_LAZY flag
+    if(uvmlazy(p->pagetable, addr, addr + n) < 0)
+      return -1;
     p->sz += n;
   }
   // if n is negative, shrink heap, free memory immediately

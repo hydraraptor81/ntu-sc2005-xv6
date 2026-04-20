@@ -45,7 +45,7 @@ kvmmake(void)
 
   // allocate and map a kernel stack for each process.
   proc_mapstacks(kpgtbl);
-  
+
   return kpgtbl;
 }
 
@@ -154,7 +154,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 
   if(size == 0)
     panic("mappages: size");
-  
+
   a = va;
   last = va + size - PGSIZE;
   for(;;){
@@ -345,7 +345,7 @@ void
 uvmclear(pagetable_t pagetable, uint64 va)
 {
   pte_t *pte;
-  
+
   pte = walk(pagetable, va, 0);
   if(pte == 0)
     panic("uvmclear");
@@ -355,6 +355,29 @@ uvmclear(pagetable_t pagetable, uint64 va)
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
+
+// Helper function to map virtual addresses with no physical pages allocated
+int uvmlazy(pagetable_t pagetable, uint64 start, uint64 end)
+{
+  uint64 a;
+  pte_t *pte;
+
+  // align page boundary
+  a = PGROUNDUP(start);
+
+  for (; a < end; a += PGSIZE){
+    pte = walk(pagetable, a, 1);
+
+    // kernel ran out of memory if walk returns 0
+    if(pte == 0)
+      return -1;
+
+    // set PTE_LAZY flag
+    *pte = PTE_LAZY;
+  }
+  return 0;
+}
+
 int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
