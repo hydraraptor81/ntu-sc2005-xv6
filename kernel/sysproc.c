@@ -40,11 +40,24 @@ sys_sbrk(void)
 {
   uint64 addr;
   int n;
+  struct proc *p = myproc();
 
+  // get requested growth size from user registers
   argint(0, &n);
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
-    return -1;
+
+  // save current process size
+  addr = p->sz;
+
+  // lazy allocation, increase virtual limit without allocating physical RAM
+  if(n > 0){
+    p->sz += n;
+  }
+  // if n is negative, shrink heap, free memory immediately
+  else if(n < 0){
+    p->sz = addr;
+    if(growproc(n) < 0)
+      return -1;
+  }
   return addr;
 }
 
